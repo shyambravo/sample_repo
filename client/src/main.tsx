@@ -7,11 +7,11 @@ import theme from './theme';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
-	<StrictMode>
+  <StrictMode>
 		<ThemeProvider theme={theme}>
 			<CssBaseline />
 			<BrowserRouter>
-				<App />
+    <App />
 			</BrowserRouter>
 		</ThemeProvider>
 	</StrictMode>

@@ -41,4 +41,7 @@ coverage/
 # Misc
 *.local
 
+# Uploads
+uploads/
+
 

@@ -4,6 +4,7 @@ import corsPlugin from '@fastify/cors';
 import multipartPlugin from '@fastify/multipart';
 import { registerUploadRoutes } from './routes/upload.routes';
 import { registerHealthRoutes } from './routes/health.routes';
+import { registerAnalysisRoutes } from './routes/analysis.routes';
 import { ensureDirectoryExists } from './utils/fs';
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -29,6 +30,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Routes
   await registerHealthRoutes(server);
   await registerUploadRoutes(server, { uploadDir });
+  await registerAnalysisRoutes(server, { uploadDir });
 
   return server;
 }
