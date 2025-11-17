@@ -10,6 +10,8 @@ import { ensureDirectoryExists } from './utils/fs';
 export async function buildServer(): Promise<FastifyInstance> {
   const server = Fastify({
     logger: true,
+    requestTimeout: 240000,
+    connectionTimeout: 240000
   });
 
   // Global plugins
@@ -20,7 +22,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   await server.register(multipartPlugin, {
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10 MB
+      fileSize: 200 * 1024 * 1024, // 200 MB
     },
   });
 
