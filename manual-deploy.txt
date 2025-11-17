@@ -1,0 +1,32 @@
+# Extract the archive
+mkdir -p ~/app
+tar -xzf ~/warehouse-deploy.tar.gz -C ~/app
+
+# Or if you used zip:
+unzip ~/warehouse-deploy.zip -d ~/app
+
+# Verify server directory exists
+ls -la ~/app/server
+
+# Install Docker if not installed
+sudo apt-get update
+sudo apt-get install -y docker.io
+sudo systemctl enable --now docker
+
+# Build the Docker image
+cd ~/app/server
+sudo docker build -t warehouse-server .
+
+# Run the container with env vars
+sudo docker run -d \
+  --name warehouse-server \
+  -p 3000:3000 \
+  -e PORT=3000 \
+  -e LITELLM_BASE_URL="https://litellm-38745900923.europe-west1.run.app" \
+  -e LITELLM_API_KEY="your-api-key-here" \
+  -e LITELLM_MODEL="gpt-4o-mini" \
+  --restart unless-stopped \
+  warehouse-server
+
+# Check logs
+sudo docker logs warehouse-server -f

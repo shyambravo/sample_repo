@@ -84,7 +84,11 @@ async function createArchive({ workspaceRoot, outDir }) {
       '--exclude=**/.turbo',
       '--exclude=**/.cache',
     ].join(' ');
-    const cmd = `tar -czf "${outFile}" ${excludes} -C "${workspaceRoot}" .`;
+    
+    // On Windows (bsdtar), use -L flag to follow symlinks
+    // On Linux/Mac (GNU tar), use --dereference for the same effect
+    const symlinkFlag = isWindows ? '-L' : '--dereference';
+    const cmd = `tar ${symlinkFlag} -czf "${outFile}" ${excludes} -C "${workspaceRoot}" .`;
     await runCommand(cmd);
     return { archivePath: outFile, archiveName: basename(outFile), archiveType: 'tar.gz' };
   }
