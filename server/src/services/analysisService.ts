@@ -7,6 +7,7 @@ import {
   stringifyContent,
 } from '@google/adk';
 import { LiteLlmAdapter } from '../adk/LiteLlmAdapter';
+import { logApp, logLLM } from '../utils/logger';
 
 export type AnalysisInput = {
   imagePath: string;
@@ -89,15 +90,35 @@ export class AnalysisService {
   }
 
   async analyze(input: AnalysisInput): Promise<AnalysisOutput> {
+    logApp.info('Starting warehouse analysis', 'AnalysisService', {
+      imagePath: input.imagePath,
+      kpiContentLength: input.kpi?.length || 0,
+    });
+    
     const { base64, mime } = await this.readImageBase64(input.imagePath);
+    logApp.info('Image loaded successfully', 'AnalysisService', {
+      mimeType: mime,
+      base64Length: base64.length,
+    });
+    
     const systemPrompt =
       'You are an expert in warehouse operations and layout optimization. Provide concise, actionable insights.';
     const userPrompt = `Analyze this warehouse floor plan image and propose improvements to maximize the KPI: "${input.kpi}". Return prioritized recommendations and any layout changes.`;
 
+    logLLM.info('Invoking ADK agent', 'AnalysisService', {
+      model: this.adkModel,
+      promptLength: systemPrompt.length + userPrompt.length,
+    });
+    
     const adkContent = await this.invokeAdkAgent({
       prompt: `${systemPrompt}\n${userPrompt}\nFormat the response as plain text recommendations.`,
       imageBase64: base64,
       imageMimeType: mime,
+    });
+    
+    logLLM.info('ADK agent response received', 'AnalysisService', {
+      responseLength: adkContent.length,
+      model: this.adkModel,
     });
 
     const providerSummaries: AnalysisOutput['providerSummaries'] = [
@@ -116,6 +137,11 @@ export class AnalysisService {
         )
         .join('\n\n') || 'No analysis available.';
 
+    logApp.info('Analysis completed successfully', 'AnalysisService', {
+      mergedReportLength: mergedReport.length,
+      providerCount: providerSummaries.length,
+    });
+    
     return { providerSummaries, mergedReport };
   }
 
@@ -124,6 +150,11 @@ export class AnalysisService {
     imageBase64: string;
     imageMimeType: string;
   }): Promise<string> {
+    logLLM.info('Invoking ADK agent', 'AnalysisService.invokeAdkAgent', {
+      promptLength: params.prompt.length,
+      imageMimeType: params.imageMimeType,
+    });
+    
     // // ADK JS uses Google GenAI under the hood; require GOOGLE_API_KEY or ADC
     // const googleApiKey = process.env.GOOGLE_API_KEY;
     // if (!googleApiKey) {
@@ -134,8 +165,10 @@ export class AnalysisService {
     const appName = 'warehouse_simulator';
     const userId = 'demo_user';
     const sessionId = 'analysis_session';
+    
     const sessionService = new InMemorySessionService();
     await sessionService.createSession({ appName, userId, sessionId, state: {} });
+    
     const runner = new Runner({ agent: this.adkAgent as unknown as LlmAgent, appName, sessionService });
 
     const newMessage = {
@@ -147,7 +180,13 @@ export class AnalysisService {
     };
 
     const events: unknown[] = [];
+    const startTime = Date.now();
+    
     try {
+      logLLM.info('Starting ADK agent execution', 'AnalysisService.invokeAdkAgent', {
+        model: this.adkModel,
+      });
+      
       for await (const event of runner.runAsync({
         userId,
         sessionId,
@@ -155,7 +194,19 @@ export class AnalysisService {
       })) {
         events.push(event);
       }
+      
+      const duration = Date.now() - startTime;
+      logLLM.info('ADK agent execution completed', 'AnalysisService.invokeAdkAgent', {
+        totalEvents: events.length,
+        durationMs: duration,
+        model: this.adkModel,
+      });
     } catch (error) {
+      const duration = Date.now() - startTime;
+      logLLM.error('Error during ADK agent execution', 'AnalysisService.invokeAdkAgent', error, {
+        durationMs: duration,
+        model: this.adkModel,
+      });
       throw new Error(
         `Failed to invoke ADK agent: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -173,18 +224,30 @@ export class AnalysisService {
       }) as any | undefined;
 
     if (lastEvent) {
-      return stringifyContent(lastEvent);
+      const content = stringifyContent(lastEvent);
+      logLLM.info('Content extracted successfully', 'AnalysisService.invokeAdkAgent', {
+        contentLength: content.length,
+      });
+      return content;
     }
 
     // Fallback: stringify the last event if no explicit final response
+    logLLM.warning('No final response found, attempting fallback', 'AnalysisService.invokeAdkAgent');
     const fallback = events[0] as any | undefined;
     if (fallback) {
       try {
-        return stringifyContent(fallback);
+        const content = stringifyContent(fallback);
+        logLLM.info('Fallback content extracted', 'AnalysisService.invokeAdkAgent', {
+          contentLength: content.length,
+        });
+        return content;
       } catch {
+        logLLM.warning('Failed to stringify fallback content', 'AnalysisService.invokeAdkAgent');
         // noop
       }
     }
+    
+    logLLM.warning('No content available from ADK agent', 'AnalysisService.invokeAdkAgent');
     return '';
   }
 }
